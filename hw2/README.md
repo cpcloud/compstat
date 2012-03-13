@@ -1,4 +1,3 @@
-# Phillip Cloud
 ## Homework 2 -- Comparing Coordinate Descent and Interior Point Methods for sparse regression
 
 ### First things first
