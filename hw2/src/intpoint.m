@@ -15,35 +15,35 @@ function [x, rt] = intpoint(a, y, lambda, varargin)
     p = inputParser;
     
     % constraint matrix
-    p.addRequired('a')
+    p.addRequired('a', @(x) ismatrix(x) && all(size(x) > 1))
     
     % observed data
-    p.addRequired('y')
+    p.addRequired('y', @(x) isvector(x) && size(a, 2) == size(x))
     
     % penalty value
-    p.addRequired('lambda')
+    p.addRequired('lambda', @(x) isreal(x) && isscalar(x))
     
     % tolerance
-    p.addOptional('reltol', 1e-3)
+    p.addOptional('reltol', 1e-3, @isposrealscalar)
     
     % output
-    p.addOptional('x', zeros(size(a, 2), 1))
+    p.addOptional('x', zeros(size(a, 2), 1), @(x) isvector(x) && size(x) == size(a, 2))
     
     % maximum newton iterations
-    p.addParamValue('maxnewtoniter', 400)
+    p.addParamValue('maxnewtoniter', 400, @isposintscalar)
     
     % max iterations for line search
-    p.addParamValue('maxlinesearchiter', 200)
+    p.addParamValue('maxlinesearchiter', @isposintscalar)
     
     % not sure
-    p.addParamValue('mu', 2)
+    p.addParamValue('mu', 2, @(x) isreal(x) && isscalar(x))
     
     % line search penalty values
-    p.addParamValue('alpha', 0.01)
-    p.addParamValue('beta', 0.5)
+    p.addParamValue('alpha', 0.01, @isposrealscalar)
+    p.addParamValue('beta', 0.5, @isposrealscalar)
     
     % matrix solver to use -- defaults to the mex file produced by mex tdma.c
-    p.addParamValue('solver', @tdmaimpl)
+    p.addParamValue('solver', @tdmaimpl, @(x) isa(x, 'function_handle'))
     
     p.parse(a, y, lambda, varargin{:})
     
@@ -73,7 +73,7 @@ function [x, rt] = intpoint(a, y, lambda, varargin)
     
     % initial f == [-1 ... -1; -1 ... -1]
     f = [x - u; -x - u];
-    
+    npts = length(x);
     dobj = -Inf;
     s = Inf;
     
@@ -97,9 +97,9 @@ function [x, rt] = intpoint(a, y, lambda, varargin)
         end
         
         % squared norm of z
-        dzz = dot(z, z);
+        dzz = z' * z;
         pobj = dzz + lambda * norm(x, 1);
-        dobj = max(-0.25 * dot(nu, nu) - dot(nu, y), dobj);
+        dobj = max(-0.25 * (nu' * nu) - nu' * y, dobj);
         gap = pobj - dobj;
         
         % stopping criterion
@@ -123,8 +123,8 @@ function [x, rt] = intpoint(a, y, lambda, varargin)
             lambda * ones(n, 1) - (q1 + q2) / t];
         
         % make the hessian -- see paper
-        dd1 = diag(d1);
-        dd2 = diag(d2);
+        dd1 = sparse(1:npts, 1:npts, d1);
+        dd2 = sparse(1:npts, 1:npts, d2);
         hessian = [2 * at * a + dd1, dd2; ...
             dd2, dd1];
         
@@ -148,7 +148,7 @@ function [x, rt] = intpoint(a, y, lambda, varargin)
             
             if max(newf) < 0
                 newz = a * newx - y;
-                newphi = dot(newz, newz) + ...
+                newphi = newz' * newz + ...
                     lambda * sum(newu) - sum(log(-newf)) / t;
                 
                 % converged?

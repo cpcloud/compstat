@@ -39,6 +39,7 @@ function rt = test_intpoint(maxd, varargin)
     
     rt = zeros(maxd, length(lambda));
     
+    xhat = cell(1, length(lambda));
     % for each d
     for d = 2:maxd
         % generate d functions and some weights
