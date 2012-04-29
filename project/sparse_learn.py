@@ -1,10 +1,19 @@
-from struct import unpack_from
-import wave
 from pylab import *
-from sklearn.decomposition import dict_learning_online
+
+
+class Bunch(dict):
+    """Class from sklearn for use of a dict as a MATLAB-style
+    struct.
+    """
+    def __init__(self, **kwargs):
+        super(Bunch, self).__init__(kwargs)
+        self.__dict__ = self
 
 
 def wavread(f):
+    from struct import unpack_from
+    import wave
+
     wav = wave.open(f, 'r')
     nchan, _, fs, nsamps, _, _ = wav.getparams()
     frames = wav.readframes(nsamps * nchan)
@@ -13,25 +22,56 @@ def wavread(f):
     return (out[::2], out[1::2], fs) if nchan == 2 else out, fs
 
 
-close('all')
-o, fs = wavread('/home/cpcloud/bird-stereo.wav')
-ax = subplot(2, 1, 1)
-p, freqs, bins, _ = specgram(o, Fs=fs)
-axis('tight')
-colorbar(orientation='horizontal', spacing='proportional')
-title('Time - Frequency Plot')
-ylabel('Frequency (Hz)')
+def load_all_wav(d='sounds'):
+    import glob
+    import os
+    import operator
+    import itertools
+    import re
+    import tokenize
+    import keyword
+    
+    fullnames = glob.glob('{}/*.wav'.format(d))
+    
+    if not fullnames:
+        raise ValueError('no files found')
 
-subplot(2, 1, 2, sharex=ax)
-plot(linspace(1, o.size, o.size) / fs, o)
-axis('tight')
-xlabel('Time (s)')
-ylabel('Amplitude')
+    n = len(fullnames)
+    splitextfiles = itertools.imap(os.path.splitext, fullnames)
+    sansextfiles = itertools.imap(operator.getitem, splitextfiles, [0] * n)
+    filenames = map(os.path.basename, sansextfiles)
+    data = Bunch(**dict(itertools.izip(filenames, [None] * n)))
+    for filename, fullname in itertools.izip(filenames, fullnames):
+        if not (re.match(tokenize.Name, filename) or
+                keyword.iskeyword(filename)):
+            raise SyntaxError(
+                'fields must be valid, non-reserved Python identifier.'
+                )
+        d, fs = wavread(fullname)
+        data[filename] = Bunch(data=d, fs=fs)
+    return data
 
-figure()
-# subplot(2, 1, 1)
-imshow(p)
-axis('tight')
-# subplot(2, 1, 2)
-# hist(p)
-show()
+    
+if __name__ == '__main__':
+    close('all')
+    datasets = load_all_wav()
+
+    fig1, fig2 = figure(), figure()
+    
+    for i, dataset in enumerate(datasets):
+        dsname = ' '.join(dataset.split('_'))
+        fig1.add_subplot(4, 3, i + 1)
+        ax1 = fig1.axes[i]
+        p, freqs, bins, _ = ax1.specgram(datasets[dataset].data,
+                                         Fs=datasets[dataset].fs)
+        ax1.axis('tight')
+        ax1.set_title(dsname)
+        ax1.axhline(y=2e4, color='k', linestyle='--', linewidth=3)
+        
+        fig2.colorbar()
+        fig2.add_subplot(4, 3, i + 1)
+        ax2 = fig2.axes[i]
+        ax2.imshow(p)
+        ax2.axis('tight')
+        fig2.colorbar()
+        ax2.set_title(dsname)
